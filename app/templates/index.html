@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GPTNutri</title>
+    <style>
+      body { font-family: Inter, Arial, sans-serif; margin: 0; background: #f4f7fb; color: #1f2937; }
+      .container { max-width: 820px; margin: 2rem auto; background: white; border-radius: 14px; padding: 1.5rem; box-shadow: 0 10px 30px rgba(0,0,0,0.08); }
+      h1 { margin-top: 0; }
+      textarea { width: 100%; min-height: 120px; border-radius: 10px; border: 1px solid #d1d5db; padding: 0.8rem; font-size: 1rem; }
+      button { background: #2563eb; color: white; border: none; padding: 0.7rem 1rem; border-radius: 10px; font-weight: 600; margin-top: 0.8rem; cursor: pointer; }
+      button:hover { background: #1d4ed8; }
+      .grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 0.8rem; margin-top: 1.2rem; }
+      .card { background: #eff6ff; border-radius: 10px; padding: 0.8rem; }
+      ul { margin-top: 0.5rem; }
+      @media (max-width: 700px) { .grid { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>GPTNutri Meal Analyzer</h1>
+      <p>Enter one meal per line (e.g., "chicken rice broccoli").</p>
+      <textarea id="meals" placeholder="Breakfast: oats banana yogurt&#10;Lunch: chicken rice broccoli"></textarea>
+      <br />
+      <button id="analyze">Analyze meals</button>
+
+      <div id="results" style="display:none;">
+        <h2>Nutrition Summary</h2>
+        <div class="grid">
+          <div class="card"><strong>Calories</strong><div id="calories"></div></div>
+          <div class="card"><strong>Protein (g)</strong><div id="protein"></div></div>
+          <div class="card"><strong>Carbs (g)</strong><div id="carbs"></div></div>
+          <div class="card"><strong>Fat (g)</strong><div id="fat"></div></div>
+        </div>
+
+        <h3>Detected foods</h3>
+        <ul id="foods"></ul>
+
+        <h3>Suggestions</h3>
+        <ul id="suggestions"></ul>
+      </div>
+    </div>
+
+    <script>
+      const button = document.getElementById("analyze");
+      button.addEventListener("click", async () => {
+        const text = document.getElementById("meals").value;
+        const meals = text.split("\n").map((line) => line.trim()).filter(Boolean);
+
+        const response = await fetch("/api/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ meals }),
+        });
+
+        const data = await response.json();
+        document.getElementById("results").style.display = "block";
+        document.getElementById("calories").innerText = data.calories;
+        document.getElementById("protein").innerText = data.protein_g;
+        document.getElementById("carbs").innerText = data.carbs_g;
+        document.getElementById("fat").innerText = data.fat_g;
+
+        const foods = document.getElementById("foods");
+        foods.innerHTML = "";
+        for (const item of data.detected_foods) {
+          const li = document.createElement("li");
+          li.textContent = item;
+          foods.appendChild(li);
+        }
+
+        const suggestions = document.getElementById("suggestions");
+        suggestions.innerHTML = "";
+        for (const item of data.suggestions) {
+          const li = document.createElement("li");
+          li.textContent = item;
+          suggestions.appendChild(li);
+        }
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GPTNutri</title>
+    <style>
+      :root {
+        --bg: #f4f7fb;
+        --card: #ffffff;
+        --text: #1f2937;
+        --muted: #6b7280;
+        --brand: #2563eb;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+      }
+      .container {
+        max-width: 900px;
+        margin: 2rem auto;
+        padding: 1.5rem;
+        border-radius: 14px;
+        background: var(--card);
+        box-shadow: 0 10px 28px rgba(0,0,0,0.08);
+      }
+      h1 { margin-top: 0; }
+      p { color: var(--muted); }
+      textarea {
+        width: 100%;
+        min-height: 130px;
+        border: 1px solid #d1d5db;
+        border-radius: 10px;
+        padding: 0.8rem;
+        font-size: 1rem;
+      }
+      button {
+        margin-top: 0.9rem;
+        border: none;
+        background: var(--brand);
+        color: #fff;
+        border-radius: 10px;
+        padding: 0.75rem 1rem;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .grid {
+        margin-top: 1.2rem;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 0.7rem;
+      }
+      .card {
+        background: #eff6ff;
+        border-radius: 10px;
+        padding: 0.8rem;
+      }
+      .muted { color: var(--muted); }
+      @media (max-width: 700px) {
+        .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="container">
+      <h1>GPTNutri (GitHub Pages)</h1>
+      <p>
+        Versão estática para rodar no GitHub Pages. Digite uma refeição por linha, por exemplo:
+        <span class="muted">"frango arroz brócolis"</span>.
+      </p>
+
+      <textarea id="meals" placeholder="Café da manhã: aveia banana iogurte&#10;Almoço: frango arroz brócolis"></textarea>
+      <br />
+      <button id="analyze">Analisar refeições</button>
+
+      <section id="results" style="display:none;">
+        <h2>Resumo nutricional</h2>
+        <div class="grid">
+          <div class="card"><strong>Calorias</strong><div id="calories"></div></div>
+          <div class="card"><strong>Proteína (g)</strong><div id="protein"></div></div>
+          <div class="card"><strong>Carboidratos (g)</strong><div id="carbs"></div></div>
+          <div class="card"><strong>Gordura (g)</strong><div id="fat"></div></div>
+        </div>
+
+        <h3>Alimentos detectados</h3>
+        <ul id="foods"></ul>
+
+        <h3>Sugestões</h3>
+        <ul id="suggestions"></ul>
+      </section>
+    </main>
+
+    <script>
+      const FOOD_DB = {
+        frango:   { calories: 240, protein_g: 45, carbs_g: 0,    fat_g: 5 },
+        chicken:  { calories: 240, protein_g: 45, carbs_g: 0,    fat_g: 5 },
+        arroz:    { calories: 210, protein_g: 4,  carbs_g: 46,   fat_g: 0.5 },
+        rice:     { calories: 210, protein_g: 4,  carbs_g: 46,   fat_g: 0.5 },
+        ovo:      { calories: 78,  protein_g: 6,  carbs_g: 0.6,  fat_g: 5 },
+        egg:      { calories: 78,  protein_g: 6,  carbs_g: 0.6,  fat_g: 5 },
+        brocolis: { calories: 55,  protein_g: 4,  carbs_g: 11,   fat_g: 0.5 },
+        broccoli: { calories: 55,  protein_g: 4,  carbs_g: 11,   fat_g: 0.5 },
+        salmao:   { calories: 208, protein_g: 22, carbs_g: 0,    fat_g: 13 },
+        salmon:   { calories: 208, protein_g: 22, carbs_g: 0,    fat_g: 13 },
+        aveia:    { calories: 150, protein_g: 5,  carbs_g: 27,   fat_g: 3 },
+        oats:     { calories: 150, protein_g: 5,  carbs_g: 27,   fat_g: 3 },
+        banana:   { calories: 105, protein_g: 1.3,carbs_g: 27,   fat_g: 0.3 },
+        iogurte:  { calories: 120, protein_g: 10, carbs_g: 17,   fat_g: 1.5 },
+        yogurt:   { calories: 120, protein_g: 10, carbs_g: 17,   fat_g: 1.5 },
+        feijao:   { calories: 130, protein_g: 8.5,carbs_g: 24,   fat_g: 0.5 },
+        beans:    { calories: 130, protein_g: 8.5,carbs_g: 24,   fat_g: 0.5 },
+        abacate:  { calories: 160, protein_g: 2,  carbs_g: 9,    fat_g: 15 },
+        avocado:  { calories: 160, protein_g: 2,  carbs_g: 9,    fat_g: 15 },
+      };
+
+      function normalize(text) {
+        return text
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '');
+      }
+
+      function analyzeMeals(meals) {
+        const totals = { calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0 };
+        const detected = [];
+
+        for (const meal of meals) {
+          const lowered = normalize(meal);
+          for (const [food, profile] of Object.entries(FOOD_DB)) {
+            if (lowered.includes(food)) {
+              detected.push(food);
+              totals.calories += profile.calories;
+              totals.protein_g += profile.protein_g;
+              totals.carbs_g += profile.carbs_g;
+              totals.fat_g += profile.fat_g;
+            }
+          }
+        }
+
+        const uniqueDetected = [...new Set(detected)].sort();
+        const suggestions = [];
+
+        if (totals.protein_g < 80) suggestions.push('Proteína baixa: adicione frango, iogurte ou feijão.');
+        if (totals.carbs_g < 130) suggestions.push('Carboidratos baixos: adicione aveia ou arroz.');
+        if (totals.fat_g < 35) suggestions.push('Gorduras boas baixas: adicione abacate ou salmão.');
+        if (totals.calories < 1600) suggestions.push('Calorias baixas para a maioria dos adultos: aumente as porções.');
+        if (uniqueDetected.length === 0) suggestions.push('Nenhum alimento reconhecido. Tente listar ingredientes explicitamente.');
+
+        return {
+          calories: Math.round(totals.calories),
+          protein_g: Number(totals.protein_g.toFixed(1)),
+          carbs_g: Number(totals.carbs_g.toFixed(1)),
+          fat_g: Number(totals.fat_g.toFixed(1)),
+          detected_foods: uniqueDetected,
+          suggestions,
+        };
+      }
+
+      function renderList(id, items) {
+        const element = document.getElementById(id);
+        element.innerHTML = '';
+        for (const item of items) {
+          const li = document.createElement('li');
+          li.textContent = item;
+          element.appendChild(li);
+        }
+      }
+
+      document.getElementById('analyze').addEventListener('click', () => {
+        const text = document.getElementById('meals').value;
+        const meals = text.split('\n').map((line) => line.trim()).filter(Boolean);
+        const data = analyzeMeals(meals);
+
+        document.getElementById('results').style.display = 'block';
+        document.getElementById('calories').innerText = data.calories;
+        document.getElementById('protein').innerText = data.protein_g;
+        document.getElementById('carbs').innerText = data.carbs_g;
+        document.getElementById('fat').innerText = data.fat_g;
+        renderList('foods', data.detected_foods);
+        renderList('suggestions', data.suggestions);
+      });
+    </script>
+  </body>
+</html>
